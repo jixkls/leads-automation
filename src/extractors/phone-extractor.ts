@@ -1,6 +1,6 @@
-import { parsePhoneNumber, isValidPhoneNumber } from 'libphonenumber-js';
+import { parsePhoneNumber, isValidPhoneNumber, type CountryCode } from 'libphonenumber-js';
 
-const PHONE_PATTERNS = [
+const createPhonePatterns = () => [
   /\+?1?[-.\s]?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}/g,
   /\+?[0-9]{1,4}[-.\s]?[0-9]{2,4}[-.\s]?[0-9]{2,4}[-.\s]?[0-9]{2,4}/g,
   /tel:([+0-9\-.\s()]+)/gi,
@@ -13,7 +13,7 @@ export function extractPhones(
 ): string[] {
   const phones = new Set<string>();
 
-  for (const pattern of PHONE_PATTERNS) {
+  for (const pattern of createPhonePatterns()) {
     const matches = html.matchAll(pattern);
     for (const match of matches) {
       const phoneStr = match[1] || match[0];
@@ -43,16 +43,15 @@ function formatPhoneNumber(
       return null;
     }
 
-    const phoneWithCountry = phone.startsWith('+') ? phone : `+1${phone}`;
+    const country = defaultCountry as CountryCode;
 
     if (
-      isValidPhoneNumber(phoneWithCountry) ||
-      isValidPhoneNumber(phone, defaultCountry as 'US')
+      isValidPhoneNumber(phone, country) ||
+      (phone.startsWith('+') && isValidPhoneNumber(phone))
     ) {
-      const parsed = parsePhoneNumber(
-        phone.startsWith('+') ? phone : phone,
-        defaultCountry as 'US'
-      );
+      const parsed = phone.startsWith('+')
+        ? parsePhoneNumber(phone)
+        : parsePhoneNumber(phone, country);
       return parsed?.formatInternational() || null;
     }
 
@@ -67,7 +66,7 @@ export function normalizePhone(
   defaultCountry: string = 'US'
 ): string | null {
   try {
-    const parsed = parsePhoneNumber(phone, defaultCountry as 'US');
+    const parsed = parsePhoneNumber(phone, defaultCountry as CountryCode);
     return parsed?.formatInternational() || null;
   } catch {
     return null;

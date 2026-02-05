@@ -74,14 +74,14 @@ export class WebsiteScraper extends BaseScraper {
     result.phones.push(...phones);
 
     const socialPatterns = [
-      /https?:\/\/(www\.)?facebook\.com\/[a-zA-Z0-9._-]+/gi,
-      /https?:\/\/(www\.)?linkedin\.com\/company\/[a-zA-Z0-9._-]+/gi,
-      /https?:\/\/(www\.)?twitter\.com\/[a-zA-Z0-9._-]+/gi,
-      /https?:\/\/(www\.)?instagram\.com\/[a-zA-Z0-9._-]+/gi,
+      () => /https?:\/\/(www\.)?facebook\.com\/[a-zA-Z0-9._-]+/gi,
+      () => /https?:\/\/(www\.)?linkedin\.com\/company\/[a-zA-Z0-9._-]+/gi,
+      () => /https?:\/\/(www\.)?twitter\.com\/[a-zA-Z0-9._-]+/gi,
+      () => /https?:\/\/(www\.)?instagram\.com\/[a-zA-Z0-9._-]+/gi,
     ];
 
-    for (const pattern of socialPatterns) {
-      const matches = html.match(pattern) || [];
+    for (const createPattern of socialPatterns) {
+      const matches = html.match(createPattern()) || [];
       result.socialLinks.push(...matches);
     }
   }

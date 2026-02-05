@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const errorMessage = document.getElementById('error-message');
 
   let currentJobId = null;
+  let unsubscribeFromStatus = null;
 
   quantityInput.addEventListener('input', () => {
     quantityValue.textContent = quantityInput.value;
@@ -27,6 +28,9 @@ document.addEventListener('DOMContentLoaded', () => {
   async function startGeneration() {
     const formData = new FormData(form);
 
+    const quantity = parseInt(formData.get('quantity'));
+    if (isNaN(quantity) || quantity < 1) return;
+
     const request = {
       niche: formData.get('niche'),
       keywords: formData.get('keywords') || undefined,
@@ -35,11 +39,18 @@ document.addEventListener('DOMContentLoaded', () => {
         state: formData.get('state') || undefined,
         country: formData.get('country'),
       },
-      quantity: parseInt(formData.get('quantity')),
+      quantity,
     };
+
+    // Clean up previous SSE connection
+    if (unsubscribeFromStatus) {
+      unsubscribeFromStatus();
+      unsubscribeFromStatus = null;
+    }
 
     hideError();
     hideResults();
+    hideProgress();
     showProgress();
     setGenerating(true);
 
@@ -47,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const response = await ApiClient.generateLeads(request);
       currentJobId = response.jobId;
 
-      ApiClient.subscribeToStatus(currentJobId, {
+      unsubscribeFromStatus = ApiClient.subscribeToStatus(currentJobId, {
         onStatus: (data) => {
           updateProgress(data.progress, data.currentStep, data.leadsCount);
         },
@@ -89,14 +100,18 @@ document.addEventListener('DOMContentLoaded', () => {
     resultsBody.innerHTML = '';
 
     for (const lead of leads) {
+      const ratingDisplay = typeof lead.rating === 'number' && !isNaN(lead.rating)
+        ? `<span class="rating-stars">${lead.rating.toFixed(1)} ★</span>`
+        : '<span class="empty-cell">-</span>';
+
       const row = document.createElement('tr');
       row.innerHTML = `
         <td>${escapeHtml(lead.name)}</td>
         <td>${lead.email ? `<a href="mailto:${escapeHtml(lead.email)}">${escapeHtml(lead.email)}</a>` : '<span class="empty-cell">-</span>'}</td>
         <td>${lead.phone ? escapeHtml(lead.phone) : '<span class="empty-cell">-</span>'}</td>
-        <td>${lead.website ? `<a href="${escapeHtml(lead.website)}" target="_blank" rel="noopener">Visitar</a>` : '<span class="empty-cell">-</span>'}</td>
+        <td>${lead.website ? `<a href="${escapeHtml(lead.website)}" target="_blank" rel="noopener noreferrer">Visitar</a>` : '<span class="empty-cell">-</span>'}</td>
         <td>${lead.address ? escapeHtml(lead.address) : '<span class="empty-cell">-</span>'}</td>
-        <td>${lead.rating ? `<span class="rating-stars">${lead.rating.toFixed(1)} ★</span>` : '<span class="empty-cell">-</span>'}</td>
+        <td>${ratingDisplay}</td>
       `;
       resultsBody.appendChild(row);
     }

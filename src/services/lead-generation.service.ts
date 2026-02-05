@@ -33,7 +33,9 @@ export class LeadGenerationService {
     };
 
     this.jobs.set(jobId, job);
-    this.runJob(job);
+    this.runJob(job).catch((error) => {
+      console.error(`[LeadGeneration] Unhandled error in job ${jobId}:`, error);
+    });
 
     return job;
   }
@@ -145,6 +147,7 @@ export class LeadGenerationService {
     } finally {
       await this.googleMapsScraper.close();
       await this.websiteScraper.close();
+      this.jobListeners.delete(job.id);
     }
   }
 

@@ -3,12 +3,12 @@ import { EMAIL_PATTERNS, EXCLUDED_EMAIL_DOMAINS } from '../config/constants.js';
 export function extractEmails(html: string): string[] {
   const emails = new Set<string>();
 
-  const standardMatches = html.match(EMAIL_PATTERNS.standard) || [];
+  const standardMatches = html.match(EMAIL_PATTERNS.standard()) || [];
   for (const email of standardMatches) {
     emails.add(email.toLowerCase());
   }
 
-  const mailtoMatches = html.matchAll(EMAIL_PATTERNS.mailto);
+  const mailtoMatches = html.matchAll(EMAIL_PATTERNS.mailto());
   for (const match of mailtoMatches) {
     if (match[1]) {
       emails.add(match[1].toLowerCase());
@@ -43,6 +43,6 @@ function filterValidEmails(emails: string[]): string[] {
 }
 
 export function extractEmailFromText(text: string): string | null {
-  const match = text.match(EMAIL_PATTERNS.standard);
+  const match = text.match(EMAIL_PATTERNS.standard());
   return match ? match[0].toLowerCase() : null;
 }

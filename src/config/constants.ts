@@ -13,8 +13,8 @@ export const CONFIG = {
 } as const;
 
 export const EMAIL_PATTERNS = {
-  standard: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi,
-  mailto: /mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi,
+  standard: () => /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi,
+  mailto: () => /mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi,
 } as const;
 
 export const CONTACT_PAGE_PATTERNS = [

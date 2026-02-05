@@ -11,8 +11,14 @@ const ApiClient = {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Falha ao iniciar tarefa');
+      let message = 'Falha ao iniciar tarefa';
+      try {
+        const error = await response.json();
+        message = error.error || message;
+      } catch {
+        // Response is not JSON
+      }
+      throw new Error(message);
     }
 
     return response.json();
@@ -25,6 +31,14 @@ const ApiClient = {
     const baseDelay = 1000;
     let isClosed = false;
 
+    const safeParse = (data) => {
+      try {
+        return JSON.parse(data);
+      } catch {
+        return null;
+      }
+    };
+
     const connect = () => {
       if (isClosed) return;
 
@@ -32,30 +46,30 @@ const ApiClient = {
 
       eventSource.addEventListener('status', (event) => {
         retryCount = 0;
-        const data = JSON.parse(event.data);
-        callbacks.onStatus?.(data);
+        const data = safeParse(event.data);
+        if (data) callbacks.onStatus?.(data);
       });
 
       eventSource.addEventListener('completed', (event) => {
-        const data = JSON.parse(event.data);
-        callbacks.onCompleted?.(data);
+        const data = safeParse(event.data);
         isClosed = true;
         eventSource.close();
+        if (data) callbacks.onCompleted?.(data);
       });
 
       eventSource.addEventListener('failed', (event) => {
-        const data = JSON.parse(event.data);
-        callbacks.onFailed?.(data);
+        const data = safeParse(event.data);
         isClosed = true;
         eventSource.close();
+        if (data) callbacks.onFailed?.(data);
       });
 
       eventSource.addEventListener('error', (event) => {
         if (event.data) {
-          const data = JSON.parse(event.data);
-          callbacks.onError?.(data.error);
+          const data = safeParse(event.data);
           isClosed = true;
           eventSource.close();
+          if (data) callbacks.onError?.(data.error);
         }
       });
 
@@ -90,8 +104,14 @@ const ApiClient = {
     const response = await fetch(`${this.baseUrl}/leads/${jobId}`);
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Falha ao obter resultados');
+      let message = 'Falha ao obter resultados';
+      try {
+        const error = await response.json();
+        message = error.error || message;
+      } catch {
+        // Response is not JSON
+      }
+      throw new Error(message);
     }
 
     return response.json();
