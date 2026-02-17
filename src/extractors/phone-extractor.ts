@@ -9,7 +9,7 @@ const createPhonePatterns = () => [
 
 export function extractPhones(
   html: string,
-  defaultCountry: string = 'US'
+  defaultCountry: string = 'BR'
 ): string[] {
   const phones = new Set<string>();
 
@@ -63,7 +63,7 @@ function formatPhoneNumber(
 
 export function normalizePhone(
   phone: string,
-  defaultCountry: string = 'US'
+  defaultCountry: string = 'BR'
 ): string | null {
   try {
     const parsed = parsePhoneNumber(phone, defaultCountry as CountryCode);

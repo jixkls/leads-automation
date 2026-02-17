@@ -1,3 +1,4 @@
+import type { Page } from 'playwright';
 import { BaseScraper } from './base-scraper.js';
 import { extractEmails } from '../extractors/email-extractor.js';
 import { extractPhones } from '../extractors/phone-extractor.js';
@@ -38,16 +39,16 @@ export class WebsiteScraper extends BaseScraper {
           await this.delay(500);
           const contactHtml = await page.content();
           this.extractFromHtml(contactHtml, result, defaultCountry);
-        } catch {
-          // Contact page navigation failed
+        } catch (err) {
+          console.log('[WebsiteScraper] Falha ao navegar para página de contato:', err instanceof Error ? err.message : err);
         }
       }
 
       result.emails = [...new Set(result.emails)];
       result.phones = [...new Set(result.phones)];
       result.socialLinks = [...new Set(result.socialLinks)];
-    } catch {
-      // Website access failed
+    } catch (err) {
+      console.log('[WebsiteScraper] Falha ao acessar website:', err instanceof Error ? err.message : err);
     } finally {
       await page.context().close();
     }
@@ -74,19 +75,19 @@ export class WebsiteScraper extends BaseScraper {
     result.phones.push(...phones);
 
     const socialPatterns = [
-      () => /https?:\/\/(www\.)?facebook\.com\/[a-zA-Z0-9._-]+/gi,
-      () => /https?:\/\/(www\.)?linkedin\.com\/company\/[a-zA-Z0-9._-]+/gi,
-      () => /https?:\/\/(www\.)?twitter\.com\/[a-zA-Z0-9._-]+/gi,
-      () => /https?:\/\/(www\.)?instagram\.com\/[a-zA-Z0-9._-]+/gi,
+      /https?:\/\/(www\.)?facebook\.com\/[a-zA-Z0-9._-]+/gi,
+      /https?:\/\/(www\.)?linkedin\.com\/(company|in)\/[a-zA-Z0-9._-]+/gi,
+      /https?:\/\/(www\.)?(twitter|x)\.com\/[a-zA-Z0-9._-]+/gi,
+      /https?:\/\/(www\.)?instagram\.com\/[a-zA-Z0-9._-]+/gi,
     ];
 
-    for (const createPattern of socialPatterns) {
-      const matches = html.match(createPattern()) || [];
+    for (const pattern of socialPatterns) {
+      const matches = html.match(pattern) || [];
       result.socialLinks.push(...matches);
     }
   }
 
-  private async findContactPage(page: any): Promise<string | null> {
+  private async findContactPage(page: Page): Promise<string | null> {
     const baseUrl = new URL(page.url()).origin;
 
     for (const pattern of CONTACT_PAGE_PATTERNS) {
@@ -103,7 +104,7 @@ export class WebsiteScraper extends BaseScraper {
     }
 
     const contactLink = await page.$(
-      'a:has-text("Contact"), a:has-text("contact"), a:has-text("Contact Us"), a:has-text("Get in Touch")'
+      'a:has-text("Contact"), a:has-text("contact"), a:has-text("Contact Us"), a:has-text("Get in Touch"), a:has-text("Contato"), a:has-text("Fale Conosco"), a:has-text("Sobre")'
     );
     if (contactLink) {
       const href = await contactLink.getAttribute('href');

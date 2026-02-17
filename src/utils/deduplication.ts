@@ -45,5 +45,9 @@ function calculateCompletenessScore(lead: Lead): number {
   if (lead.address) score += 1;
   if (lead.company) score += 1;
   if (lead.rating) score += 0.5;
+  if (lead.facebook) score += 0.5;
+  if (lead.instagram) score += 0.5;
+  if (lead.linkedin) score += 0.5;
+  if (lead.twitter) score += 0.5;
   return score;
 }

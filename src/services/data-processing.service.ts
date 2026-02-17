@@ -18,6 +18,10 @@ export class DataProcessingService {
       company: lead.company ? this.normalizeName(lead.company) : undefined,
       website: lead.website ? this.normalizeUrl(lead.website) : undefined,
       address: lead.address?.trim(),
+      facebook: lead.facebook ? this.normalizeUrl(lead.facebook) : undefined,
+      instagram: lead.instagram ? this.normalizeUrl(lead.instagram) : undefined,
+      linkedin: lead.linkedin ? this.normalizeUrl(lead.linkedin) : undefined,
+      twitter: lead.twitter ? this.normalizeUrl(lead.twitter) : undefined,
     };
   }
 
@@ -25,7 +29,7 @@ export class DataProcessingService {
     return name
       .trim()
       .replace(/\s+/g, ' ')
-      .replace(/[^\w\s&'-]/g, '');
+      .replace(/[^\p{L}\p{N}\s&'-]/gu, '');
   }
 
   private normalizeUrl(url: string): string {

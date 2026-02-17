@@ -24,6 +24,10 @@ export const CONTACT_PAGE_PATTERNS = [
   '/about-us',
   '/get-in-touch',
   '/reach-us',
+  '/contato',
+  '/fale-conosco',
+  '/sobre',
+  '/sobre-nos',
 ] as const;
 
 export const EXCLUDED_EMAIL_DOMAINS = [

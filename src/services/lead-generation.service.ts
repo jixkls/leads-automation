@@ -96,6 +96,11 @@ export class LeadGenerationService {
         const business = businesses[i];
 
         let email: string | undefined;
+        let websiteFacebook: string | undefined;
+        let websiteInstagram: string | undefined;
+        let websiteLinkedin: string | undefined;
+        let websiteTwitter: string | undefined;
+
         if (business.website) {
           job.currentStep = `Extraindo contatos de ${business.name}...`;
           this.updateJob(job);
@@ -106,8 +111,16 @@ export class LeadGenerationService {
               this.getCountryCode(job.request.location.country)
             );
             email = contactInfo.emails[0];
+
+            for (const link of contactInfo.socialLinks) {
+              const lower = link.toLowerCase();
+              if (!websiteFacebook && lower.includes('facebook.com')) websiteFacebook = link;
+              else if (!websiteInstagram && lower.includes('instagram.com')) websiteInstagram = link;
+              else if (!websiteLinkedin && lower.includes('linkedin.com')) websiteLinkedin = link;
+              else if (!websiteTwitter && (lower.includes('twitter.com') || lower.includes('x.com'))) websiteTwitter = link;
+            }
           } catch {
-            // Continue without email
+            // Continue without email/social
           }
         }
 
@@ -124,6 +137,10 @@ export class LeadGenerationService {
           country: job.request.location.country,
           rating: business.rating,
           reviewCount: business.reviewCount,
+          facebook: business.facebook || websiteFacebook,
+          instagram: business.instagram || websiteInstagram,
+          linkedin: business.linkedin || websiteLinkedin,
+          twitter: business.twitter || websiteTwitter,
           niche: job.request.niche,
           source: 'google_maps',
           scrapedAt: new Date(),

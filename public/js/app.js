@@ -99,9 +99,26 @@ document.addEventListener('DOMContentLoaded', () => {
   function displayResults(leads) {
     resultsBody.innerHTML = '';
 
+    if (leads.length === 0) {
+      const row = document.createElement('tr');
+      row.innerHTML = '<td colspan="7" style="text-align:center;padding:2rem;color:#888;">Nenhum lead encontrado</td>';
+      resultsBody.appendChild(row);
+      showResults();
+      return;
+    }
+
     for (const lead of leads) {
       const ratingDisplay = typeof lead.rating === 'number' && !isNaN(lead.rating)
         ? `<span class="rating-stars">${lead.rating.toFixed(1)} ★</span>`
+        : '<span class="empty-cell">-</span>';
+
+      const socialBadges = [];
+      if (lead.facebook) socialBadges.push(`<a href="${escapeHtml(lead.facebook)}" target="_blank" rel="noopener noreferrer" class="social-badge social-fb">FB</a>`);
+      if (lead.instagram) socialBadges.push(`<a href="${escapeHtml(lead.instagram)}" target="_blank" rel="noopener noreferrer" class="social-badge social-ig">IG</a>`);
+      if (lead.linkedin) socialBadges.push(`<a href="${escapeHtml(lead.linkedin)}" target="_blank" rel="noopener noreferrer" class="social-badge social-li">LI</a>`);
+      if (lead.twitter) socialBadges.push(`<a href="${escapeHtml(lead.twitter)}" target="_blank" rel="noopener noreferrer" class="social-badge social-tw">TW</a>`);
+      const socialDisplay = socialBadges.length > 0
+        ? `<div class="social-links">${socialBadges.join('')}</div>`
         : '<span class="empty-cell">-</span>';
 
       const row = document.createElement('tr');
@@ -111,6 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>${lead.phone ? escapeHtml(lead.phone) : '<span class="empty-cell">-</span>'}</td>
         <td>${lead.website ? `<a href="${escapeHtml(lead.website)}" target="_blank" rel="noopener noreferrer">Visitar</a>` : '<span class="empty-cell">-</span>'}</td>
         <td>${lead.address ? escapeHtml(lead.address) : '<span class="empty-cell">-</span>'}</td>
+        <td>${socialDisplay}</td>
         <td>${ratingDisplay}</td>
       `;
       resultsBody.appendChild(row);

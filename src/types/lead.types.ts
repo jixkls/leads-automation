@@ -13,8 +13,12 @@ export const LeadSchema = z.object({
   country: z.string().optional(),
   rating: z.number().optional(),
   reviewCount: z.number().optional(),
+  facebook: z.string().url().optional(),
+  instagram: z.string().url().optional(),
+  linkedin: z.string().url().optional(),
+  twitter: z.string().url().optional(),
   niche: z.string(),
-  source: z.enum(['google_maps', 'website', 'google_search', 'duckduckgo']),
+  source: z.enum(['google_maps']),
   scrapedAt: z.date(),
 });
 
@@ -57,6 +61,10 @@ export interface ScrapedBusiness {
   rating?: number;
   reviewCount?: number;
   placeId?: string;
+  facebook?: string;
+  instagram?: string;
+  linkedin?: string;
+  twitter?: string;
 }
 
 export interface ExtractedContact {

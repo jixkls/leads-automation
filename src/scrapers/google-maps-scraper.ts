@@ -3,7 +3,7 @@ import { BaseScraper, ScraperError } from './base-scraper.js';
 import type { ScrapedBusiness } from '../types/lead.types.js';
 
 export class GoogleMapsScraper extends BaseScraper {
-  private normalizeBrazilPhone(phone: string): string {
+  private normalizeBrazilPhone(phone: string): string | undefined {
     // Remove all non-digit characters
     const digits = phone.replace(/\D/g, '');
 
@@ -20,7 +20,11 @@ export class GoogleMapsScraper extends BaseScraper {
       return `+55${cleanDigits}`;
     }
 
-    // Return with +55 prefix anyway for Brazilian context
+    // Too few digits to be a valid Brazilian number
+    if (cleanDigits.length < 10) {
+      return undefined;
+    }
+
     return `+55${cleanDigits}`;
   }
 
@@ -101,7 +105,7 @@ export class GoogleMapsScraper extends BaseScraper {
 
   private async collectBusinessUrls(
     page: Page,
-    resultsPanel: any,
+    resultsPanel: import('playwright').ElementHandle,
     maxResults: number
   ): Promise<string[]> {
     const urls = new Set<string>();
@@ -165,7 +169,7 @@ export class GoogleMapsScraper extends BaseScraper {
     }
   }
 
-  private async findResultsPanel(page: Page): Promise<any> {
+  private async findResultsPanel(page: Page): Promise<import('playwright').ElementHandle | null> {
     const selectors = [
       'div[role="feed"]',
       'div[role="main"] div[role="feed"]',
@@ -306,6 +310,52 @@ export class GoogleMapsScraper extends BaseScraper {
         }
       }
 
+      // Extract social media links
+      let facebook: string | undefined;
+      let instagram: string | undefined;
+      let linkedin: string | undefined;
+      let twitter: string | undefined;
+
+      // Check a[data-item-id] elements for social platform links
+      const socialElements = await page.$$('a[data-item-id]');
+      for (const el of socialElements) {
+        const href = await el.getAttribute('href');
+        const itemId = await el.getAttribute('data-item-id');
+        if (!href) continue;
+        const lowerHref = href.toLowerCase();
+        const lowerId = (itemId || '').toLowerCase();
+
+        if (lowerHref.includes('facebook.com') || lowerId.includes('facebook')) {
+          facebook = facebook || href;
+        } else if (lowerHref.includes('instagram.com') || lowerId.includes('instagram')) {
+          instagram = instagram || href;
+        } else if (lowerHref.includes('linkedin.com') || lowerId.includes('linkedin')) {
+          linkedin = linkedin || href;
+        } else if (lowerHref.includes('twitter.com') || lowerHref.includes('x.com') || lowerId.includes('twitter')) {
+          twitter = twitter || href;
+        }
+      }
+
+      // Fallback: scan all <a href> on the page for social URLs
+      if (!facebook || !instagram || !linkedin || !twitter) {
+        const allLinks = await page.$$('a[href]');
+        for (const link of allLinks) {
+          const href = await link.getAttribute('href');
+          if (!href) continue;
+          const lowerHref = href.toLowerCase();
+
+          if (!facebook && lowerHref.includes('facebook.com/') && !lowerHref.includes('facebook.com/sharer') && !lowerHref.includes('/events/') && !lowerHref.includes('/groups/') && !lowerHref.includes('/watch') && !lowerHref.includes('/plugins')) {
+            facebook = href;
+          } else if (!instagram && lowerHref.includes('instagram.com/') && !lowerHref.includes('instagram.com/accounts')) {
+            instagram = href;
+          } else if (!linkedin && lowerHref.includes('linkedin.com/')) {
+            linkedin = href;
+          } else if (!twitter && (lowerHref.includes('twitter.com/') || lowerHref.includes('x.com/')) && !lowerHref.includes('/intent/') && !lowerHref.includes('/share')) {
+            twitter = href;
+          }
+        }
+      }
+
       const ratingSelectors = [
         'span[role="img"][aria-label*="stars"]',
         'span[role="img"][aria-label*="estrelas"]',
@@ -366,6 +416,10 @@ export class GoogleMapsScraper extends BaseScraper {
         address,
         rating,
         reviewCount,
+        facebook,
+        instagram,
+        linkedin,
+        twitter,
       };
     } catch (err) {
       console.log('[GoogleMaps] Erro ao extrair detalhes:', err instanceof Error ? err.message : err);
