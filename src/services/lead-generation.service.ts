@@ -75,14 +75,21 @@ export class LeadGenerationService {
       await this.googleMapsScraper.initialize();
 
       const location = this.buildLocationString(job.request.location);
-      const searchQuery = job.request.keywords
-        ? `${job.request.niche} ${job.request.keywords}`
-        : job.request.niche;
+      // Each comma-separated keyword becomes its own search combined with the
+      // niche, so keywords WIDEN the result pool instead of narrowing a single
+      // query (Google treats multiple words in one query as AND)
+      const keywordList = (job.request.keywords || '')
+        .split(',')
+        .map((k) => k.trim())
+        .filter(Boolean);
+      const queries = keywordList.length
+        ? keywordList.map((keyword) => `${job.request.niche} ${keyword}`)
+        : [job.request.niche];
 
       const options = job.request.options;
 
       const businesses = await this.googleMapsScraper.searchBusinesses(
-        searchQuery,
+        queries,
         location,
         job.request.quantity,
         (current, total, businessName) => {

@@ -36,91 +36,108 @@ export class GoogleMapsScraper extends BaseScraper {
   }
 
   async searchBusinesses(
-    query: string,
+    queries: string[],
     location: string,
     maxResults: number,
     onProgress?: (current: number, total: number, business?: string) => void,
     filters?: ScrapeFilters
   ): Promise<ScrapedBusiness[]> {
-    console.log(`[GoogleMaps] Iniciando busca: "${query}" em "${location}"`);
+    console.log(`[GoogleMaps] Iniciando ${queries.length} busca(s) em "${location}"`);
     const context = await this.createContext();
     const page = await this.createPageInContext(context);
     const businesses: ScrapedBusiness[] = [];
+    // Place URLs already collected across all queries (same place can show up
+    // in several searches and under different URL variants)
+    const seenPlaceKeys = new Set<string>();
+    // Extracted businesses, keyed by name+address and by phone
+    const seenBusinessKeys = new Set<string>();
+    let anyPanelFound = false;
 
     try {
-      const searchQuery = `${query} in ${location}`;
-      const encodedQuery = encodeURIComponent(searchQuery);
-      const searchUrl = `https://www.google.com/maps/search/${encodedQuery}`;
+      for (let q = 0; q < queries.length && businesses.length < maxResults; q++) {
+        const query = queries[q];
+        const searchQuery = `${query} in ${location}`;
+        const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(searchQuery)}`;
 
-      console.log(`[GoogleMaps] Navegando para: ${searchUrl}`);
-      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch((err) => {
-        console.error('[GoogleMaps] Falha na navegação:', err.message);
-        throw new ScraperError(`Falha ao acessar Google Maps: ${err.message}`, 'network');
-      });
+        console.log(`[GoogleMaps] Busca ${q + 1}/${queries.length}: "${query}"`);
+        try {
+          await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.error('[GoogleMaps] Falha na navegação:', message);
+          if (queries.length === 1) {
+            throw new ScraperError(`Falha ao acessar Google Maps: ${message}`, 'network');
+          }
+          continue;
+        }
 
-      console.log('[GoogleMaps] Verificando diálogo de consentimento...');
-      await this.handleConsentDialog(page);
+        if (q === 0) {
+          await this.handleConsentDialog(page);
+        }
 
-      // Wait for Google Maps to load the results feed
-      console.log('[GoogleMaps] Aguardando carregamento do mapa...');
-      await page.waitForSelector('div[role="feed"], div[role="main"]', { timeout: 15000 }).catch(() => {
-        console.log('[GoogleMaps] Timeout aguardando feed, continuando...');
-      });
-      await this.delay(1500);
+        await page.waitForSelector('div[role="feed"], div[role="main"]', { timeout: 15000 }).catch(() => {
+          console.log('[GoogleMaps] Timeout aguardando feed, continuando...');
+        });
+        await this.delay(1500);
 
-      console.log('[GoogleMaps] Procurando painel de resultados...');
-      const resultsPanel = await this.findResultsPanel(page);
-      if (!resultsPanel) {
-        console.log('[GoogleMaps] Painel de resultados não encontrado');
+        const resultsPanel = await this.findResultsPanel(page);
+        if (!resultsPanel) {
+          console.log(`[GoogleMaps] Painel de resultados não encontrado para "${query}"`);
+          continue;
+        }
+        anyPanelFound = true;
+
+        // Phase 1: Collect new place URLs for this query (overfetch to
+        // compensate failed extractions and filtered-out results)
+        const remaining = maxResults - businesses.length;
+        const urlTarget = Math.ceil(remaining * CONFIG.scraper.urlOverfetchRatio) + 3;
+        const urls = await this.collectBusinessUrls(page, resultsPanel, urlTarget, seenPlaceKeys);
+        console.log(`[GoogleMaps] ${urls.length} URLs novas coletadas para "${query}"`);
+        if (urls.length === 0) continue;
+
+        // Phase 2: Process queue with parallel worker pages
+        const concurrency = Math.max(1, CONFIG.scraper.detailConcurrency);
+        let nextUrlIndex = 0;
+
+        const workers = Array.from({ length: Math.min(concurrency, urls.length) }, async (_, workerId) => {
+          const workerPage = workerId === 0 ? page : await this.createPageInContext(context);
+          try {
+            while (businesses.length < maxResults && nextUrlIndex < urls.length) {
+              const index = nextUrlIndex++;
+              const url = urls[index];
+              console.log(`[GoogleMaps] Processando ${index + 1}/${urls.length}: ${url.slice(0, 60)}...`);
+
+              const business = await this.extractFromUrl(workerPage, url);
+              if (!business) continue;
+
+              if (!this.passesFilters(business, filters)) {
+                console.log(`[GoogleMaps] Negócio descartado pelos filtros: ${business.name}`);
+                continue;
+              }
+
+              if (this.isDuplicateBusiness(business, seenBusinessKeys)) {
+                console.log(`[GoogleMaps] Negócio duplicado ignorado: ${business.name}`);
+                continue;
+              }
+
+              if (businesses.length >= maxResults) break;
+              businesses.push(business);
+              console.log(`[GoogleMaps] Negócio extraído: ${business.name}`);
+              onProgress?.(businesses.length, maxResults, business.name);
+            }
+          } finally {
+            if (workerId !== 0) {
+              await workerPage.close().catch(() => {});
+            }
+          }
+        });
+
+        await Promise.all(workers);
+      }
+
+      if (!anyPanelFound && businesses.length === 0) {
         throw new ScraperError('Nenhum resultado encontrado no Google Maps', 'selector');
       }
-      console.log('[GoogleMaps] Painel de resultados encontrado');
-
-      // Phase 1: Collect business URLs (overfetch to compensate failed
-      // extractions and filtered-out results)
-      const urlTarget = Math.ceil(maxResults * CONFIG.scraper.urlOverfetchRatio) + 3;
-      console.log(`[GoogleMaps] Coletando URLs (alvo: ${urlTarget})...`);
-      const urls = await this.collectBusinessUrls(page, resultsPanel, urlTarget);
-      console.log(`[GoogleMaps] ${urls.length} URLs coletadas`);
-
-      if (urls.length === 0) {
-        console.log('[GoogleMaps] Nenhuma URL encontrada');
-        return businesses;
-      }
-
-      // Phase 2: Process queue with parallel worker pages
-      const concurrency = Math.max(1, CONFIG.scraper.detailConcurrency);
-      let nextUrlIndex = 0;
-
-      const workers = Array.from({ length: Math.min(concurrency, urls.length) }, async (_, workerId) => {
-        const workerPage = workerId === 0 ? page : await this.createPageInContext(context);
-        try {
-          while (businesses.length < maxResults && nextUrlIndex < urls.length) {
-            const index = nextUrlIndex++;
-            const url = urls[index];
-            console.log(`[GoogleMaps] Processando ${index + 1}/${urls.length}: ${url.slice(0, 60)}...`);
-
-            const business = await this.extractFromUrl(workerPage, url);
-            if (!business) continue;
-
-            if (!this.passesFilters(business, filters)) {
-              console.log(`[GoogleMaps] Negócio descartado pelos filtros: ${business.name}`);
-              continue;
-            }
-
-            if (businesses.length >= maxResults) break;
-            businesses.push(business);
-            console.log(`[GoogleMaps] Negócio extraído: ${business.name}`);
-            onProgress?.(businesses.length, Math.min(urls.length, maxResults), business.name);
-          }
-        } finally {
-          if (workerId !== 0) {
-            await workerPage.close().catch(() => {});
-          }
-        }
-      });
-
-      await Promise.all(workers);
 
       console.log(`[GoogleMaps] Busca concluída. Total: ${businesses.length} negócios`);
     } catch (error) {
@@ -133,6 +150,39 @@ export class GoogleMapsScraper extends BaseScraper {
     }
 
     return businesses;
+  }
+
+  /**
+   * Stable identity for a place URL, so the same place reached through
+   * different URL variants (or different searches) is only collected once.
+   */
+  private placeKeyFromUrl(url: string): string {
+    // Google encodes a unique place id as !1s0x...:0x...
+    const idMatch = url.match(/!1s(0x[0-9a-f]+:0x[0-9a-f]+)/i);
+    if (idMatch) return idMatch[1].toLowerCase();
+
+    const nameMatch = url.match(/\/maps\/place\/([^/]+)/);
+    const coords = url.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+    return `${nameMatch?.[1].toLowerCase() ?? url}|${coords ? `${coords[1]},${coords[2]}` : ''}`;
+  }
+
+  /**
+   * Checks an extracted business against everything already collected, by
+   * name+address and by phone. Registers its keys when it is new.
+   */
+  private isDuplicateBusiness(business: ScrapedBusiness, seen: Set<string>): boolean {
+    const name = business.name.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const address = (business.address || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const nameKey = `n:${name}|${address}`;
+    const phoneDigits = business.phone?.replace(/\D/g, '') || '';
+    const phoneKey = phoneDigits.length >= 10 ? `p:${phoneDigits.slice(-10)}` : null;
+
+    if (seen.has(nameKey) || (phoneKey && seen.has(phoneKey))) {
+      return true;
+    }
+    seen.add(nameKey);
+    if (phoneKey) seen.add(phoneKey);
+    return false;
   }
 
   private passesFilters(business: ScrapedBusiness, filters?: ScrapeFilters): boolean {
@@ -148,27 +198,31 @@ export class GoogleMapsScraper extends BaseScraper {
   private async collectBusinessUrls(
     page: Page,
     resultsPanel: import('playwright').ElementHandle,
-    maxResults: number
+    maxResults: number,
+    seenPlaceKeys: Set<string>
   ): Promise<string[]> {
-    const urls = new Set<string>();
+    const urls: string[] = [];
     let scrollAttempts = 0;
     // Scale scroll budget with the requested quantity (~7 results per scroll page)
     const maxScrollAttempts = Math.max(25, Math.ceil(maxResults / 4) + 15);
     let previousUrlCount = 0;
     let noNewUrlsCount = 0;
 
-    while (urls.size < maxResults && scrollAttempts < maxScrollAttempts) {
+    while (urls.length < maxResults && scrollAttempts < maxScrollAttempts) {
       // Extract all place links in a single page evaluation (much faster than
       // round-tripping per element)
       const hrefs = await page.$$eval('a[href*="/maps/place/"]', (links) =>
         links.map((l) => l.getAttribute('href')).filter((h): h is string => !!h)
       );
       for (const href of hrefs) {
-        if (urls.size >= maxResults) break;
-        urls.add(href);
+        if (urls.length >= maxResults) break;
+        const placeKey = this.placeKeyFromUrl(href);
+        if (seenPlaceKeys.has(placeKey)) continue;
+        seenPlaceKeys.add(placeKey);
+        urls.push(href);
       }
 
-      console.log(`[GoogleMaps] URLs encontradas: ${urls.size}`);
+      console.log(`[GoogleMaps] URLs encontradas: ${urls.length}`);
 
       // Stop early when Google Maps says there is nothing more to load
       const reachedEnd = await resultsPanel.evaluate((el: Element, markers: string[]) => {
@@ -182,7 +236,7 @@ export class GoogleMapsScraper extends BaseScraper {
       }
 
       // Check if we found new URLs in this scroll
-      if (urls.size === previousUrlCount) {
+      if (urls.length === previousUrlCount) {
         noNewUrlsCount++;
         if (noNewUrlsCount >= 3) {
           console.log('[GoogleMaps] Sem novas URLs após 3 tentativas, parando coleta');
@@ -191,10 +245,10 @@ export class GoogleMapsScraper extends BaseScraper {
       } else {
         noNewUrlsCount = 0;
       }
-      previousUrlCount = urls.size;
+      previousUrlCount = urls.length;
 
       // Scroll a full panel height to load more results
-      if (urls.size < maxResults) {
+      if (urls.length < maxResults) {
         await resultsPanel.evaluate((el: Element) => {
           el.scrollBy(0, el.clientHeight || 800);
         });
@@ -203,7 +257,7 @@ export class GoogleMapsScraper extends BaseScraper {
       }
     }
 
-    return Array.from(urls);
+    return urls;
   }
 
   private async extractFromUrl(
