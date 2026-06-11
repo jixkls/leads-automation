@@ -52,6 +52,30 @@ export const EXCLUDED_EMAIL_DOMAINS = [
   'google.com',
   'facebook.com',
   'twitter.com',
+  // Placeholder domains left in website templates
+  'meusite.com',
+  'mysite.com',
+  'yoursite.com',
+  'seusite.com',
+  'yourdomain.com',
+  'domain.com',
+  'email.com',
+  'wix.com',
+] as const;
+
+// Social profile URLs that belong to website builders/platforms, not to the
+// business itself (left behind by site templates)
+export const EXCLUDED_SOCIAL_PATTERNS = [
+  'facebook.com/wixstudio',
+  'facebook.com/wix',
+  'facebook.com/wordpress',
+  'instagram.com/wixstudio',
+  'instagram.com/wix',
+  'instagram.com/wordpress',
+  'twitter.com/wix',
+  'x.com/wix',
+  'linkedin.com/company/wix-com',
+  'linkedin.com/company/wordpress',
 ] as const;
 
 export const USER_AGENTS = [

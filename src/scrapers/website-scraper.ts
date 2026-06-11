@@ -2,7 +2,7 @@ import type { Page } from 'playwright';
 import { BaseScraper } from './base-scraper.js';
 import { extractEmails } from '../extractors/email-extractor.js';
 import { extractPhones } from '../extractors/phone-extractor.js';
-import { CONTACT_PAGE_PATTERNS } from '../config/constants.js';
+import { CONTACT_PAGE_PATTERNS, EXCLUDED_SOCIAL_PATTERNS } from '../config/constants.js';
 import type { ExtractedContact } from '../types/lead.types.js';
 
 export class WebsiteScraper extends BaseScraper {
@@ -83,7 +83,12 @@ export class WebsiteScraper extends BaseScraper {
 
     for (const pattern of socialPatterns) {
       const matches = html.match(pattern) || [];
-      result.socialLinks.push(...matches);
+      for (const link of matches) {
+        const lower = link.toLowerCase();
+        if (!EXCLUDED_SOCIAL_PATTERNS.some((excluded) => lower.includes(excluded))) {
+          result.socialLinks.push(link);
+        }
+      }
     }
 
     // WhatsApp links (wa.me/<number> or api.whatsapp.com/send?phone=<number>)

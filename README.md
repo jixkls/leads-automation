@@ -4,8 +4,15 @@ Ferramenta de automacao para geracao de leads a partir do Google Maps.
 
 ## Requisitos
 
-- [Bun](https://bun.sh/) v1.0+
+- [Node.js](https://nodejs.org/) v20+ (o servidor roda via tsx/Node)
+- [Bun](https://bun.sh/) ou npm como gerenciador de pacotes
 - Playwright browsers instalados
+
+> **Importante (Windows):** o Playwright nao consegue iniciar o Chromium
+> quando executado diretamente pelo Bun no Windows (o navegador abre mas o
+> handshake nunca completa, falhando com timeout). Por isso os scripts usam
+> `tsx`, que executa sob Node. No Linux o Bun funciona normalmente, mas os
+> scripts via tsx funcionam em ambos.
 
 ## Instalacao
 

@@ -4,6 +4,16 @@ import { CONFIG, USER_AGENTS } from '../config/constants.js';
 
 const BLOCKED_RESOURCE_TYPES = new Set(['image', 'font', 'media']);
 
+// Playwright cannot launch browsers under Bun on Windows (the stdio pipes of
+// its launch transport never connect). The server must run under Node — see
+// the tsx-based scripts in package.json. Fail fast with a clear message.
+if (typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined' && process.platform === 'win32') {
+  console.warn(
+    '[Scraper] AVISO: Playwright não funciona sob Bun no Windows. ' +
+      'Use "bun run dev" / "npm run dev" (que executam via tsx/Node).'
+  );
+}
+
 export class ScraperError extends Error {
   constructor(
     message: string,
@@ -33,9 +43,7 @@ export abstract class BaseScraper {
   private async launchBrowser(): Promise<void> {
     try {
       console.log('[Scraper] Inicializando navegador...');
-      this.browser = await chromium.launch({
-        headless: CONFIG.scraper.headless,
-      });
+      this.browser = await chromium.launch({ headless: CONFIG.scraper.headless });
       console.log('[Scraper] Navegador iniciado com sucesso');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -52,7 +60,7 @@ export abstract class BaseScraper {
 
   async close(): Promise<void> {
     if (this.browser) {
-      await this.browser.close();
+      await this.browser.close().catch(() => {});
       this.browser = null;
     }
   }
