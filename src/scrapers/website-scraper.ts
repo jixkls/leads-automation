@@ -24,7 +24,7 @@ export class WebsiteScraper extends BaseScraper {
         timeout: 15000,
       });
 
-      await this.delay(1000);
+      await this.delay(500);
 
       const homePageHtml = await page.content();
       this.extractFromHtml(homePageHtml, result, defaultCountry);
@@ -36,7 +36,7 @@ export class WebsiteScraper extends BaseScraper {
             waitUntil: 'domcontentloaded',
             timeout: 10000,
           });
-          await this.delay(500);
+          await this.delay(300);
           const contactHtml = await page.content();
           this.extractFromHtml(contactHtml, result, defaultCountry);
         } catch (err) {
@@ -84,6 +84,15 @@ export class WebsiteScraper extends BaseScraper {
     for (const pattern of socialPatterns) {
       const matches = html.match(pattern) || [];
       result.socialLinks.push(...matches);
+    }
+
+    // WhatsApp links (wa.me/<number> or api.whatsapp.com/send?phone=<number>)
+    if (!result.whatsapp) {
+      const waMatch = html.match(/(?:wa\.me\/|whatsapp\.com\/send\?[^"']*phone=)\+?(\d{10,15})/i);
+      if (waMatch) {
+        const number = waMatch[1];
+        result.whatsapp = number.startsWith('55') || number.length > 11 ? `+${number}` : `+55${number}`;
+      }
     }
   }
 

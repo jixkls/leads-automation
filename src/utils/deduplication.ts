@@ -41,9 +41,11 @@ function calculateCompletenessScore(lead: Lead): number {
   let score = 0;
   if (lead.email) score += 3;
   if (lead.phone) score += 2;
+  if (lead.whatsapp) score += 1;
   if (lead.website) score += 1;
   if (lead.address) score += 1;
   if (lead.company) score += 1;
+  if (lead.category) score += 0.5;
   if (lead.rating) score += 0.5;
   if (lead.facebook) score += 0.5;
   if (lead.instagram) score += 0.5;

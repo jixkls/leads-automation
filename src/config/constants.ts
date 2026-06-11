@@ -9,6 +9,14 @@ export const CONFIG = {
     headless: process.env.HEADLESS !== 'false',
     retryAttempts: 3,
     retryDelay: 1000,
+    // Number of Google Maps detail pages processed in parallel
+    detailConcurrency: parseInt(process.env.DETAIL_CONCURRENCY || '3'),
+    // Number of business websites scraped for contacts in parallel
+    websiteConcurrency: parseInt(process.env.WEBSITE_CONCURRENCY || '4'),
+    // Block images/fonts/media to speed up page loads
+    blockResources: process.env.BLOCK_RESOURCES !== 'false',
+    // Extra URLs collected beyond the requested quantity to compensate extraction failures
+    urlOverfetchRatio: parseFloat(process.env.URL_OVERFETCH_RATIO || '1.4'),
   },
 } as const;
 
@@ -25,7 +33,10 @@ export const CONTACT_PAGE_PATTERNS = [
   '/get-in-touch',
   '/reach-us',
   '/contato',
+  '/contacto',
   '/fale-conosco',
+  '/atendimento',
+  '/quem-somos',
   '/sobre',
   '/sobre-nos',
 ] as const;

@@ -31,6 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const quantity = parseInt(formData.get('quantity'));
     if (isNaN(quantity) || quantity < 1) return;
 
+    const minRatingValue = formData.get('minRating');
+
     const request = {
       niche: formData.get('niche'),
       keywords: formData.get('keywords') || undefined,
@@ -40,6 +42,13 @@ document.addEventListener('DOMContentLoaded', () => {
         country: formData.get('country'),
       },
       quantity,
+      options: {
+        extractWebsiteContacts: formData.get('extractWebsiteContacts') === 'on',
+        minRating: minRatingValue ? parseFloat(minRatingValue) : undefined,
+        requirePhone: formData.get('requirePhone') === 'on',
+        requireWebsite: formData.get('requireWebsite') === 'on',
+        requireEmail: formData.get('requireEmail') === 'on',
+      },
     };
 
     // Clean up previous SSE connection
@@ -101,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (leads.length === 0) {
       const row = document.createElement('tr');
-      row.innerHTML = '<td colspan="7" style="text-align:center;padding:2rem;color:#888;">Nenhum lead encontrado</td>';
+      row.innerHTML = '<td colspan="9" style="text-align:center;padding:2rem;color:#888;">Nenhum lead encontrado</td>';
       resultsBody.appendChild(row);
       showResults();
       return;
@@ -121,11 +130,18 @@ document.addEventListener('DOMContentLoaded', () => {
         ? `<div class="social-links">${socialBadges.join('')}</div>`
         : '<span class="empty-cell">-</span>';
 
+      const whatsappDigits = lead.whatsapp ? lead.whatsapp.replace(/\D/g, '') : '';
+      const whatsappDisplay = whatsappDigits
+        ? `<a href="https://wa.me/${whatsappDigits}" target="_blank" rel="noopener noreferrer">${escapeHtml(lead.whatsapp)}</a>`
+        : '<span class="empty-cell">-</span>';
+
       const row = document.createElement('tr');
       row.innerHTML = `
         <td>${escapeHtml(lead.name)}</td>
+        <td>${lead.category ? escapeHtml(lead.category) : '<span class="empty-cell">-</span>'}</td>
         <td>${lead.email ? `<a href="mailto:${escapeHtml(lead.email)}">${escapeHtml(lead.email)}</a>` : '<span class="empty-cell">-</span>'}</td>
         <td>${lead.phone ? escapeHtml(lead.phone) : '<span class="empty-cell">-</span>'}</td>
+        <td>${whatsappDisplay}</td>
         <td>${lead.website ? `<a href="${escapeHtml(lead.website)}" target="_blank" rel="noopener noreferrer">Visitar</a>` : '<span class="empty-cell">-</span>'}</td>
         <td>${lead.address ? escapeHtml(lead.address) : '<span class="empty-cell">-</span>'}</td>
         <td>${socialDisplay}</td>

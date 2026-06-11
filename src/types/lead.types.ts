@@ -4,13 +4,18 @@ export const LeadSchema = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string().email().optional(),
+  allEmails: z.array(z.string()).optional(),
   phone: z.string().optional(),
+  whatsapp: z.string().optional(),
   company: z.string().optional(),
   website: z.string().url().optional(),
   address: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
   country: z.string().optional(),
+  category: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
   rating: z.number().optional(),
   reviewCount: z.number().optional(),
   facebook: z.string().url().optional(),
@@ -32,7 +37,21 @@ export const GenerateLeadsRequestSchema = z.object({
     state: z.string().optional(),
     country: z.string().min(1, 'Country is required'),
   }),
-  quantity: z.number().min(10).max(50).default(10),
+  quantity: z.number().min(1).max(200).default(10),
+  options: z
+    .object({
+      extractWebsiteContacts: z.boolean().default(true),
+      minRating: z.number().min(0).max(5).optional(),
+      requirePhone: z.boolean().default(false),
+      requireWebsite: z.boolean().default(false),
+      requireEmail: z.boolean().default(false),
+    })
+    .default({
+      extractWebsiteContacts: true,
+      requirePhone: false,
+      requireWebsite: false,
+      requireEmail: false,
+    }),
 });
 
 export type GenerateLeadsRequest = z.infer<typeof GenerateLeadsRequestSchema>;
@@ -58,6 +77,9 @@ export interface ScrapedBusiness {
   whatsapp?: string;
   address?: string;
   website?: string;
+  category?: string;
+  latitude?: number;
+  longitude?: number;
   rating?: number;
   reviewCount?: number;
   placeId?: string;
@@ -67,8 +89,15 @@ export interface ScrapedBusiness {
   twitter?: string;
 }
 
+export interface ScrapeFilters {
+  minRating?: number;
+  requirePhone?: boolean;
+  requireWebsite?: boolean;
+}
+
 export interface ExtractedContact {
   emails: string[];
   phones: string[];
   socialLinks: string[];
+  whatsapp?: string;
 }

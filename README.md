@@ -34,6 +34,10 @@ Variaveis disponiveis:
 | `MAX_CONCURRENT_REQUESTS` | Requisicoes simultaneas | `3` |
 | `REQUEST_TIMEOUT` | Timeout em ms | `30000` |
 | `HEADLESS` | Executar browser sem interface | `true` |
+| `DETAIL_CONCURRENCY` | Paginas de detalhes do Maps processadas em paralelo | `3` |
+| `WEBSITE_CONCURRENCY` | Sites de negocios raspados em paralelo | `4` |
+| `BLOCK_RESOURCES` | Bloquear imagens/fontes/midia para acelerar | `true` |
+| `URL_OVERFETCH_RATIO` | Coleta extra de URLs para compensar falhas | `1.4` |
 
 ## Uso
 
@@ -55,8 +59,9 @@ Acesse `http://localhost:3000` no navegador para usar a interface grafica.
 
 1. Preencha o **Nicho** (ex: "Fisioterapia", "Restaurantes", "Academias")
 2. Preencha a **Localizacao** (ex: "Sao Paulo, SP, Brasil")
-3. Selecione a **Quantidade** de leads desejada (10-50)
-4. Clique em **Gerar Leads**
+3. Selecione a **Quantidade** de leads desejada (1-200)
+4. (Opcional) Abra **Opcoes Avancadas** para filtrar por avaliacao minima, exigir telefone/site/e-mail ou desativar a extracao de contatos dos sites
+5. Clique em **Gerar Leads**
 
 ### API
 
@@ -73,7 +78,14 @@ Content-Type: application/json
     "state": "Parana",
     "country": "Brasil"
   },
-  "quantity": 20
+  "quantity": 20,
+  "options": {
+    "extractWebsiteContacts": true,
+    "minRating": 4,
+    "requirePhone": false,
+    "requireWebsite": false,
+    "requireEmail": false
+  }
 }
 ```
 
@@ -100,10 +112,14 @@ GET /api/export/csv/:jobId
 Para cada negocio encontrado, a ferramenta extrai:
 
 - **Nome** do estabelecimento
+- **Categoria** do negocio (ex: "Restaurante", "Dentista")
 - **Telefone** (formatado com +55)
-- **WhatsApp** (quando disponivel)
+- **WhatsApp** (do Maps, do site ou derivado do telefone)
+- **E-mail** (primario + todos os encontrados no site)
 - **Website**
 - **Endereco**
+- **Coordenadas** (latitude/longitude)
+- **Redes sociais** (Facebook, Instagram, LinkedIn, Twitter/X)
 - **Avaliacao** (estrelas)
 - **Numero de avaliacoes**
 

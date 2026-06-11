@@ -276,3 +276,50 @@ tr:hover {
 .social-ig { background: #e4405f; }
 .social-li { background: #0a66c2; }
 .social-tw { background: #1da1f2; }
+
+.advanced-options {
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+
+.advanced-options summary {
+  cursor: pointer;
+  font-weight: 500;
+  user-select: none;
+}
+
+.advanced-options[open] summary {
+  margin-bottom: 1rem;
+}
+
+.advanced-options select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  background: #fff;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400 !important;
+  margin-bottom: 0 !important;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--primary);
+}

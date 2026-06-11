@@ -77,15 +77,51 @@
               type="range"
               id="quantity"
               name="quantity"
-              min="10"
-              max="50"
+              min="1"
+              max="200"
               value="10"
             >
             <div class="range-labels">
-              <span>10</span>
-              <span>50</span>
+              <span>1</span>
+              <span>200</span>
             </div>
           </div>
+
+          <details class="advanced-options">
+            <summary>Opções Avançadas</summary>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="min-rating">Avaliação Mínima</label>
+                <select id="min-rating" name="minRating">
+                  <option value="">Qualquer</option>
+                  <option value="3">3.0+ ★</option>
+                  <option value="3.5">3.5+ ★</option>
+                  <option value="4">4.0+ ★</option>
+                  <option value="4.5">4.5+ ★</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="extract-website-contacts" name="extractWebsiteContacts" checked>
+                Extrair e-mails e contatos dos sites (mais lento, mais dados)
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="require-phone" name="requirePhone">
+                Somente negócios com telefone
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="require-website" name="requireWebsite">
+                Somente negócios com site
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="require-email" name="requireEmail">
+                Somente leads com e-mail encontrado
+              </label>
+            </div>
+          </details>
 
           <button type="submit" id="generate-btn">Gerar Leads</button>
         </form>
@@ -111,8 +147,10 @@
             <thead>
               <tr>
                 <th>Nome</th>
+                <th>Categoria</th>
                 <th>E-mail</th>
                 <th>Telefone</th>
+                <th>WhatsApp</th>
                 <th>Site</th>
                 <th>Endereço</th>
                 <th>Redes Sociais</th>

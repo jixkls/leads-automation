@@ -1,6 +1,8 @@
-import type { Browser, Page } from 'playwright';
+import type { Browser, BrowserContext, Page } from 'playwright';
 import { chromium } from 'playwright';
 import { CONFIG, USER_AGENTS } from '../config/constants.js';
+
+const BLOCKED_RESOURCE_TYPES = new Set(['image', 'font', 'media']);
 
 export class ScraperError extends Error {
   constructor(
@@ -14,26 +16,37 @@ export class ScraperError extends Error {
 
 export abstract class BaseScraper {
   protected browser: Browser | null = null;
+  private initPromise: Promise<void> | null = null;
 
   async initialize(): Promise<void> {
-    if (!this.browser) {
-      try {
-        console.log('[Scraper] Inicializando navegador...');
-        this.browser = await chromium.launch({
-          headless: CONFIG.scraper.headless,
-        });
-        console.log('[Scraper] Navegador iniciado com sucesso');
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error('[Scraper] Falha ao iniciar navegador:', message);
-        if (message.includes('Executable doesn\'t exist') || message.includes('browserType.launch')) {
-          throw new ScraperError(
-            'Navegador Playwright não instalado. Execute: bunx playwright install chromium',
-            'browser'
-          );
-        }
-        throw new ScraperError(`Falha ao iniciar navegador: ${message}`, 'browser');
+    // Share a single launch across concurrent callers so parallel
+    // createPage() calls never spawn duplicate browsers
+    if (this.browser) return;
+    if (!this.initPromise) {
+      this.initPromise = this.launchBrowser().finally(() => {
+        this.initPromise = null;
+      });
+    }
+    return this.initPromise;
+  }
+
+  private async launchBrowser(): Promise<void> {
+    try {
+      console.log('[Scraper] Inicializando navegador...');
+      this.browser = await chromium.launch({
+        headless: CONFIG.scraper.headless,
+      });
+      console.log('[Scraper] Navegador iniciado com sucesso');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[Scraper] Falha ao iniciar navegador:', message);
+      if (message.includes('Executable doesn\'t exist') || message.includes('browserType.launch')) {
+        throw new ScraperError(
+          'Navegador Playwright não instalado. Execute: bunx playwright install chromium',
+          'browser'
+        );
       }
+      throw new ScraperError(`Falha ao iniciar navegador: ${message}`, 'browser');
     }
   }
 
@@ -44,22 +57,39 @@ export abstract class BaseScraper {
     }
   }
 
-  protected async createPage(): Promise<Page> {
+  protected async createContext(): Promise<BrowserContext> {
     if (!this.browser) {
       await this.initialize();
     }
 
-    console.log('[Scraper] Criando nova página...');
     const context = await this.browser!.newContext({
       userAgent: this.getRandomUserAgent(),
       viewport: { width: 1920, height: 1080 },
       locale: 'pt-BR',
     });
 
+    if (CONFIG.scraper.blockResources) {
+      await context.route('**/*', (route) => {
+        if (BLOCKED_RESOURCE_TYPES.has(route.request().resourceType())) {
+          return route.abort();
+        }
+        return route.continue();
+      });
+    }
+
+    return context;
+  }
+
+  protected async createPageInContext(context: BrowserContext): Promise<Page> {
     const page = await context.newPage();
     page.setDefaultTimeout(CONFIG.scraper.requestTimeout);
-
     return page;
+  }
+
+  protected async createPage(): Promise<Page> {
+    console.log('[Scraper] Criando nova página...');
+    const context = await this.createContext();
+    return this.createPageInContext(context);
   }
 
   protected getRandomUserAgent(): string {

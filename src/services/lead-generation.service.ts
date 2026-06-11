@@ -1,7 +1,9 @@
 import { GoogleMapsScraper } from '../scrapers/google-maps-scraper.js';
 import { WebsiteScraper } from '../scrapers/website-scraper.js';
 import { DataProcessingService } from './data-processing.service.js';
-import type { Job, Lead, GenerateLeadsRequest } from '../types/lead.types.js';
+import { mapWithConcurrency } from '../utils/concurrency.js';
+import { CONFIG } from '../config/constants.js';
+import type { Job, Lead, GenerateLeadsRequest, ExtractedContact } from '../types/lead.types.js';
 
 type JobUpdateCallback = (job: Job) => void;
 
@@ -77,6 +79,8 @@ export class LeadGenerationService {
         ? `${job.request.niche} ${job.request.keywords}`
         : job.request.niche;
 
+      const options = job.request.options;
+
       const businesses = await this.googleMapsScraper.searchBusinesses(
         searchQuery,
         location,
@@ -85,56 +89,74 @@ export class LeadGenerationService {
           job.progress = Math.round((current / total) * 50);
           job.currentStep = `Negócio encontrado: ${businessName || 'Desconhecido'}`;
           this.updateJob(job);
+        },
+        {
+          minRating: options?.minRating,
+          requirePhone: options?.requirePhone,
+          requireWebsite: options?.requireWebsite,
         }
       );
 
       job.currentStep = 'Extraindo informações de contato...';
       this.updateJob(job);
 
-      const leads: Lead[] = [];
-      for (let i = 0; i < businesses.length; i++) {
-        const business = businesses[i];
+      // Scrape business websites for contacts in parallel
+      const extractContacts = options?.extractWebsiteContacts !== false;
+      const countryCode = this.getCountryCode(job.request.location.country);
+      let processedCount = 0;
 
-        let email: string | undefined;
+      const contactResults = extractContacts
+        ? await mapWithConcurrency(
+            businesses,
+            CONFIG.scraper.websiteConcurrency,
+            async (business): Promise<ExtractedContact | null> => {
+              if (!business.website) return null;
+              try {
+                return await this.websiteScraper.extractContactInfo(business.website, countryCode);
+              } catch {
+                return null;
+              } finally {
+                processedCount++;
+                job.progress = 50 + Math.round((processedCount / businesses.length) * 45);
+                job.currentStep = `Extraindo contatos (${processedCount}/${businesses.length})...`;
+                this.updateJob(job);
+              }
+            }
+          )
+        : businesses.map(() => null);
+
+      const leads: Lead[] = businesses.map((business, i) => {
+        const contactInfo = contactResults[i];
+
         let websiteFacebook: string | undefined;
         let websiteInstagram: string | undefined;
         let websiteLinkedin: string | undefined;
         let websiteTwitter: string | undefined;
 
-        if (business.website) {
-          job.currentStep = `Extraindo contatos de ${business.name}...`;
-          this.updateJob(job);
-
-          try {
-            const contactInfo = await this.websiteScraper.extractContactInfo(
-              business.website,
-              this.getCountryCode(job.request.location.country)
-            );
-            email = contactInfo.emails[0];
-
-            for (const link of contactInfo.socialLinks) {
-              const lower = link.toLowerCase();
-              if (!websiteFacebook && lower.includes('facebook.com')) websiteFacebook = link;
-              else if (!websiteInstagram && lower.includes('instagram.com')) websiteInstagram = link;
-              else if (!websiteLinkedin && lower.includes('linkedin.com')) websiteLinkedin = link;
-              else if (!websiteTwitter && (lower.includes('twitter.com') || lower.includes('x.com'))) websiteTwitter = link;
-            }
-          } catch {
-            // Continue without email/social
-          }
+        for (const link of contactInfo?.socialLinks ?? []) {
+          const lower = link.toLowerCase();
+          if (!websiteFacebook && lower.includes('facebook.com')) websiteFacebook = link;
+          else if (!websiteInstagram && lower.includes('instagram.com')) websiteInstagram = link;
+          else if (!websiteLinkedin && lower.includes('linkedin.com')) websiteLinkedin = link;
+          else if (!websiteTwitter && (lower.includes('twitter.com') || lower.includes('x.com'))) websiteTwitter = link;
         }
 
-        const lead: Lead = {
+        return {
           id: this.generateLeadId(),
           name: business.name,
-          email,
-          phone: business.phone,
+          email: contactInfo?.emails[0],
+          allEmails: contactInfo?.emails.length ? contactInfo.emails : undefined,
+          phone: business.phone || contactInfo?.phones[0],
+          whatsapp: business.whatsapp || contactInfo?.whatsapp,
           company: business.name,
           website: business.website,
           address: business.address,
           city: job.request.location.city,
           state: job.request.location.state,
           country: job.request.location.country,
+          category: business.category,
+          latitude: business.latitude,
+          longitude: business.longitude,
           rating: business.rating,
           reviewCount: business.reviewCount,
           facebook: business.facebook || websiteFacebook,
@@ -142,16 +164,20 @@ export class LeadGenerationService {
           linkedin: business.linkedin || websiteLinkedin,
           twitter: business.twitter || websiteTwitter,
           niche: job.request.niche,
-          source: 'google_maps',
+          source: 'google_maps' as const,
           scrapedAt: new Date(),
         };
+      });
 
-        leads.push(lead);
-        job.progress = 50 + Math.round(((i + 1) / businesses.length) * 50);
-        this.updateJob(job);
+      job.currentStep = 'Processando e deduplicando leads...';
+      job.progress = 95;
+      this.updateJob(job);
+
+      let processed = this.dataProcessingService.processLeads(leads);
+      if (options?.requireEmail) {
+        processed = processed.filter((lead) => !!lead.email);
       }
-
-      job.leads = this.dataProcessingService.processLeads(leads);
+      job.leads = processed;
       job.status = 'completed';
       job.currentStep = 'Concluído!';
       job.progress = 100;
